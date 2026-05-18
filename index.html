@@ -364,6 +364,52 @@
   }
   .btn-submit:hover { background: #e04800; }
   .btn-submit:disabled { background: #ffb89a; cursor: default; }
+
+  /* ── Category Bar ── */
+  .category-bar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 28px;
+    display: flex; align-items: center; gap: 2px;
+    overflow-x: auto; scrollbar-width: none;
+    flex-shrink: 0;
+  }
+  .category-bar::-webkit-scrollbar { display: none; }
+  .cat-tab {
+    padding: 11px 14px;
+    border: none; background: transparent;
+    font-family: inherit; font-size: 13px; font-weight: 500;
+    color: var(--text-secondary); cursor: pointer;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+    transition: color 0.12s, border-color 0.12s;
+    letter-spacing: -0.2px;
+  }
+  .cat-tab:hover { color: var(--text-primary); }
+  .cat-tab.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 700; }
+
+  /* ── Category badge on card ── */
+  .card-category {
+    font-size: 10px; font-weight: 700; padding: 2px 8px;
+    border-radius: 20px; display: inline-block;
+    margin-bottom: 8px; letter-spacing: -0.1px;
+  }
+  .card-meta { font-size: 11px; color: var(--text-muted); margin-top: 8px; }
+
+  /* ── Category select in modal ── */
+  .field select {
+    width: 100%; padding: 11px 36px 11px 13px;
+    border: 1.5px solid #e5e8eb; border-radius: var(--radius-md);
+    font-size: 14px; font-family: inherit;
+    background: #fff; color: var(--text-primary);
+    outline: none; transition: border-color 0.15s; letter-spacing: -0.3px;
+    cursor: pointer; appearance: none; -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236b7684' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 13px center;
+  }
+  .field select:focus { border-color: var(--primary); }
+  .field select option[value=""] { color: var(--text-muted); }
 </style>
 </head>
 <body>
@@ -416,7 +462,7 @@
       </button>
       <button class="nav-btn" id="sideDelete">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
-        삭제 모드
+        대시보드 삭제
       </button>
     </nav>
     <div class="sidebar-divider"></div>
@@ -447,6 +493,8 @@
       <span class="result-count" id="resultCount"></span>
     </div>
 
+    <div class="category-bar" id="categoryBar"></div>
+
     <main>
       <div class="delete-banner" id="deleteBanner">삭제할 대시보드를 선택하세요</div>
       <div class="grid" id="grid"></div>
@@ -470,6 +518,17 @@
     </div>
     <div class="field"><label>제목</label><input type="text" id="f-title" placeholder="대시보드 제목" /></div>
     <div class="field"><label>URL</label><input type="text" id="f-url" placeholder="https://" /></div>
+    <div class="field">
+      <label>카테고리</label>
+      <select id="f-category">
+        <option value="">카테고리 선택 (선택사항)</option>
+        <option value="시/수술 트렌드">시/수술 트렌드</option>
+        <option value="SU">SU</option>
+        <option value="검색">검색</option>
+        <option value="이벤트">이벤트</option>
+        <option value="병원">병원</option>
+      </select>
+    </div>
     <div class="field"><label>작성자</label><div class="field-readonly" id="f-author"></div></div>
     <div class="field"><label>등록일</label><div class="field-readonly" id="f-date"></div></div>
     <button class="btn-submit" id="submitBtn">추가하기</button>
@@ -640,7 +699,7 @@ document.getElementById('sideSignout').onclick = () => auth.signOut();
 /* ── Firestore ── */
 function subscribeToDashboards() {
   unsubscribe = db.collection('dashboards').orderBy('createdAt', 'desc').onSnapshot(
-    snap => { dashboards = snap.docs.map(d => ({ id: d.id, ...d.data() })); renderGrid(); },
+    snap => { dashboards = snap.docs.map(d => ({ id: d.id, ...d.data() })); renderCategoryBar(); renderGrid(); },
     err  => { document.getElementById('grid').innerHTML = `<div class="empty">데이터를 불러오지 못했어요.<br><small>${err.message}</small></div>`; }
   );
 }
@@ -653,6 +712,37 @@ const palettes = [
   { color:'#EC4899', bg:'#fdf2f8' }, { color:'#65A30D', bg:'#f7fee7' },
 ];
 
+/* ── Categories ── */
+const CATEGORIES = [
+  { id: '시/수술 트렌드', label: '시/수술 트렌드', color: '#8B5CF6', bg: '#f5f3ff' },
+  { id: 'SU',            label: 'SU',            color: '#3B82F6', bg: '#eff6ff' },
+  { id: '검색',           label: '검색',           color: '#F59E0B', bg: '#fffbeb' },
+  { id: '이벤트',         label: '이벤트',         color: '#10B981', bg: '#ecfdf5' },
+  { id: '병원',           label: '병원',           color: '#EC4899', bg: '#fdf2f8' },
+];
+let activeCategory = 'all';
+
+function getCategoryStyle(catId) {
+  const c = CATEGORIES.find(c => c.id === catId);
+  return c ? { color: c.color, bg: c.bg } : { color: '#6b7684', bg: '#f2f4f6' };
+}
+
+function renderCategoryBar() {
+  const bar = document.getElementById('categoryBar');
+  if (!bar) return;
+  const tabs = [{ id: 'all', label: '전체' }, ...CATEGORIES];
+  bar.innerHTML = tabs.map(t =>
+    `<button class="cat-tab${activeCategory === t.id ? ' active' : ''}" data-cat="${t.id}">${t.label}</button>`
+  ).join('');
+  bar.querySelectorAll('.cat-tab').forEach(btn => {
+    btn.onclick = () => {
+      activeCategory = btn.dataset.cat;
+      renderCategoryBar();
+      renderGrid();
+    };
+  });
+}
+
 function highlight(text, q) {
   if (!q || !text) return text || '';
   const esc = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -664,19 +754,25 @@ function renderGrid() {
   grid.innerHTML = '';
   const q = query.trim().toLowerCase();
   const filtered = dashboards.filter(d =>
-    (d.title||'').toLowerCase().includes(q) ||
-    (d.author||'').toLowerCase().includes(q) ||
-    (d.date||'').includes(q)
+    (activeCategory === 'all' || (d.category || '') === activeCategory) &&
+    ((d.title||'').toLowerCase().includes(q) ||
+     (d.author||'').toLowerCase().includes(q) ||
+     (d.date||'').includes(q))
   );
-  document.getElementById('resultCount').textContent = q ? `${filtered.length}개 검색됨` : `${dashboards.length}개`;
+  const total = activeCategory === 'all' ? dashboards.length : dashboards.filter(d => (d.category||'') === activeCategory).length;
+  document.getElementById('resultCount').textContent = q ? `${filtered.length}개 검색됨` : `${total}개`;
   if (filtered.length === 0) {
-    grid.innerHTML = `<div class="empty">${q ? '검색 결과가 없어요.' : '아직 등록된 대시보드가 없어요.<br>좌측 메뉴에서 추가해보세요.'}</div>`;
+    const msg = q ? '검색 결과가 없어요.'
+      : activeCategory !== 'all' ? '이 카테고리에 등록된 대시보드가 없어요.'
+      : '아직 등록된 대시보드가 없어요.<br>좌측 메뉴에서 추가해보세요.';
+    grid.innerHTML = `<div class="empty">${msg}</div>`;
     return;
   }
   filtered.forEach((d, i) => {
     const idx = dashboards.indexOf(d);
     const p = palettes[idx % palettes.length];
     const isSelected = selectedIds.has(d.id);
+    const cs = d.category ? getCategoryStyle(d.category) : null;
     let card;
     if (deleteMode) {
       card = document.createElement('div');
@@ -685,9 +781,9 @@ function renderGrid() {
       card.onclick = () => toggleSelect(d.id);
       card.innerHTML = `
         <div class="card-checkbox">${isSelected ? '✓' : ''}</div>
-        <span class="card-tag" style="color:${p.color};background:${p.bg}">by ${highlight(d.author, query)}</span>
+        ${cs ? `<span class="card-category" style="color:${cs.color};background:${cs.bg}">${d.category}</span>` : ''}
         <div class="card-title">${highlight(d.title, query)}</div>
-        <div class="card-date">등록일 ${highlight(d.date||'', query)}</div>
+        <div class="card-meta">by ${highlight(d.author, query)} · ${highlight(d.date||'', query)}</div>
       `;
     } else {
       card = document.createElement('a');
@@ -702,9 +798,9 @@ function renderGrid() {
             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
           </svg>
         </button>
-        <span class="card-tag" style="color:${p.color};background:${p.bg}">by ${highlight(d.author, query)}</span>
+        ${cs ? `<span class="card-category" style="color:${cs.color};background:${cs.bg}">${d.category}</span>` : ''}
         <div class="card-title">${highlight(d.title, query)}</div>
-        <div class="card-date">등록일 ${highlight(d.date||'', query)}</div>
+        <div class="card-meta">by ${highlight(d.author, query)} · ${highlight(d.date||'', query)}</div>
       `;
       // Edit button handler (prevent link navigation)
       const editBtn = card.querySelector('.card-edit-btn');
@@ -797,6 +893,7 @@ function openModal(mode, dashboard) {
     document.getElementById('modalTitle').textContent = '대시보드 수정하기';
     document.getElementById('f-title').value = dashboard.title || '';
     document.getElementById('f-url').value = dashboard.url || '';
+    document.getElementById('f-category').value = dashboard.category || '';
     document.getElementById('f-author').textContent = dashboard.author || '';
     document.getElementById('f-date').textContent = dashboard.date || '';
     document.getElementById('submitBtn').textContent = '수정 완료';
@@ -804,6 +901,7 @@ function openModal(mode, dashboard) {
     document.getElementById('modalTitle').textContent = '대시보드 추가하기';
     document.getElementById('f-title').value = '';
     document.getElementById('f-url').value = '';
+    document.getElementById('f-category').value = activeCategory !== 'all' ? activeCategory : '';
     const u = auth.currentUser;
     let author = '';
     if (u && u.email) {
@@ -838,9 +936,10 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal()
 
 /* ── Submit (Add / Edit) ── */
 document.getElementById('submitBtn').onclick = async () => {
-  const title = document.getElementById('f-title').value.trim();
-  const url   = document.getElementById('f-url').value.trim();
-  const author = document.getElementById('f-author').textContent.trim();
+  const title    = document.getElementById('f-title').value.trim();
+  const url      = document.getElementById('f-url').value.trim();
+  const author   = document.getElementById('f-author').textContent.trim();
+  const category = document.getElementById('f-category').value;
   if (!title) { document.getElementById('f-title').focus(); return; }
   if (!url)   { document.getElementById('f-url').focus(); return; }
   const btn = document.getElementById('submitBtn');
@@ -848,19 +947,19 @@ document.getElementById('submitBtn').onclick = async () => {
   try {
     if (modalMode === 'edit' && editingId) {
       await db.collection('dashboards').doc(editingId).update({
-        title, url,
+        title, url, category,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
         updatedBy: auth.currentUser ? auth.currentUser.uid : null,
       });
-      logEvent('edit', { dashboardId: editingId, dashboardTitle: title, dashboardUrl: url });
+      logEvent('edit', { dashboardId: editingId, dashboardTitle: title, dashboardUrl: url, dashboardCategory: category });
     } else {
       await db.collection('dashboards').add({
-        title, url, author,
+        title, url, author, category,
         date: todayStr,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         createdBy: auth.currentUser ? auth.currentUser.uid : null,
       });
-      logEvent('add', { dashboardTitle: title, dashboardUrl: url, dashboardAuthor: author });
+      logEvent('add', { dashboardTitle: title, dashboardUrl: url, dashboardAuthor: author, dashboardCategory: category });
     }
     closeModal();
   } catch(e) {

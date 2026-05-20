@@ -537,8 +537,8 @@
         <option value="검색">검색</option>
         <option value="이벤트">이벤트</option>
         <option value="병원">병원</option>
-        <option value="기타">기타</option>
         <option value="OKR">OKR</option>
+        <option value="기타">기타</option>
       </select>
     </div>
     <div class="field"><label>작성자</label><div class="field-readonly" id="f-author"></div></div>
@@ -731,8 +731,8 @@ const CATEGORIES = [
   { id: '검색',           label: '검색',           color: '#F59E0B', bg: '#fffbeb' },
   { id: '이벤트',         label: '이벤트',         color: '#10B981', bg: '#ecfdf5' },
   { id: '병원',           label: '병원',           color: '#EC4899', bg: '#fdf2f8' },
-  { id: '기타',           label: '기타',           color: '#6b7684', bg: '#f2f4f6' },
   { id: 'OKR',           label: 'OKR',           color: '#0EA5E9', bg: '#f0f9ff' },
+  { id: '기타',           label: '기타',           color: '#6b7684', bg: '#f2f4f6' },
 ];
 let activeCategory = 'all';
 
@@ -784,7 +784,7 @@ function renderGrid() {
   }
 
   // 카테고리순 > 등록일 빠른순 정렬
-  const catOrder = ['시/수술 트렌드', 'SU', '검색', '이벤트', '병원', '기타', 'OKR'];
+  const catOrder = ['시/수술 트렌드', 'SU', '검색', '이벤트', '병원', 'OKR', '기타'];
   filtered.sort((a, b) => {
     const ai = catOrder.indexOf(a.category || ''); const bi = catOrder.indexOf(b.category || '');
     const catDiff = (ai === -1 ? catOrder.length : ai) - (bi === -1 ? catOrder.length : bi);

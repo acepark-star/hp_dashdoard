@@ -540,6 +540,7 @@
         <option value="병원">병원</option>
         <option value="OKR">OKR</option>
         <option value="기타">기타</option>
+        <option value="미사용">미사용</option>
       </select>
     </div>
     <div class="field"><label>작성자</label><div class="field-readonly" id="f-author"></div></div>
@@ -735,6 +736,7 @@ const CATEGORIES = [
   { id: '병원',           label: '병원',           color: '#EC4899', bg: '#fdf2f8' },
   { id: 'OKR',           label: 'OKR',           color: '#0EA5E9', bg: '#f0f9ff' },
   { id: '기타',           label: '기타',           color: '#6b7684', bg: '#f2f4f6' },
+  { id: '미사용',         label: '미사용',         color: '#b0b8c1', bg: '#f5f6f7' },
 ];
 let activeCategory = 'all';
 
@@ -770,12 +772,14 @@ function renderGrid() {
   grid.innerHTML = '';
   const q = query.trim().toLowerCase();
   const filtered = dashboards.filter(d =>
-    (activeCategory === 'all' || (d.category || '') === activeCategory) &&
+    (activeCategory === 'all' ? (d.category || '') !== '미사용' : (d.category || '') === activeCategory) &&
     ((d.title||'').toLowerCase().includes(q) ||
      (d.author||'').toLowerCase().includes(q) ||
      (d.date||'').includes(q))
   );
-  const total = activeCategory === 'all' ? dashboards.length : dashboards.filter(d => (d.category||'') === activeCategory).length;
+  const total = activeCategory === 'all'
+    ? dashboards.filter(d => (d.category||'') !== '미사용').length
+    : dashboards.filter(d => (d.category||'') === activeCategory).length;
   document.getElementById('resultCount').textContent = q ? `${filtered.length}개 검색됨` : `${total}개`;
   if (filtered.length === 0) {
     const msg = q ? '검색 결과가 없어요.'
@@ -786,7 +790,7 @@ function renderGrid() {
   }
 
   // 카테고리순 > 등록일 빠른순 정렬
-  const catOrder = ['시/수술 트렌드', 'SU', '광고', '검색', '이벤트', '병원', 'OKR', '기타'];
+  const catOrder = ['시/수술 트렌드', 'SU', '광고', '검색', '이벤트', '병원', 'OKR', '기타', '미사용'];
   filtered.sort((a, b) => {
     const ai = catOrder.indexOf(a.category || ''); const bi = catOrder.indexOf(b.category || '');
     const catDiff = (ai === -1 ? catOrder.length : ai) - (bi === -1 ? catOrder.length : bi);

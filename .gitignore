@@ -1,0 +1,20 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+
+# 운영용 파일 (배포 불필요)
+README.md
+AGENTS.md
+deploy.command
+_backup_로컬_*/
+
+# 로컬 자산 (배포본에 base64로 이미 내장됨)
+menu.png
+
+# 편집기 / 임시
+.vscode/
+.idea/
+*.swp
+*~

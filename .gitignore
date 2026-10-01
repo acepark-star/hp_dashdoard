@@ -12,6 +12,7 @@ _backup_로컬_*/
 
 # 로컬 자산 (배포본에 base64로 이미 내장됨)
 menu.png
+logo.png
 
 # 편집기 / 임시
 .vscode/

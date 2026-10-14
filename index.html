@@ -172,7 +172,7 @@
 
   /* ── 보드형 ── */
   /* 칸 최소 폭 300px, 최대 6열 — 창 폭에 따라 열 수가 자동으로 늘고 준다 */
-  .board { columns: 300px 6; column-gap: 14px; }
+  .board { columns: 300px 5; column-gap: 14px; }
   .col { break-inside: avoid; display: block; margin: 0 0 14px; min-width: 0;
     background: var(--tray); border-radius: var(--radius-lg); padding: 12px 12px 13px; }
   .colh { display: flex; align-items: center; gap: 8px; padding: 0 1px 11px; }
@@ -188,8 +188,8 @@
   .card:hover { box-shadow: var(--shadow-hover); transform: translateY(-1px); }
   .card-link { position: absolute; inset: 0; z-index: 1; border-radius: inherit; }
   .card-link:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-  .card .ct { font-size: 12.5px; font-weight: 600; line-height: 1.45; letter-spacing: -.01em; }
-  .card .cm { margin-top: 6px; font-size: 10.5px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .card .ct { font-size: 14.5px; font-weight: 600; line-height: 1.5; letter-spacing: -0.3px; word-break: keep-all; }
+  .card .cm { margin-top: 8px; font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
   .card.isfav { box-shadow: 0 1px 2px -1px rgba(243,81,29,.22), inset 0 0 0 1px rgba(255,106,59,.32); }
   .card.isfav:hover { box-shadow: var(--shadow-hover), inset 0 0 0 1px rgba(255,106,59,.46); }
 
@@ -216,9 +216,9 @@
   .lrow:hover { background: var(--fill); }
   .lrow .card-link { border-radius: 0; }
   .lrow .fav { position: static; justify-self: start; }
-  .lrow .t { min-width: 0; font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .lrow .a { font-size: 11.5px; color: var(--text-secondary); }
-  .lrow .d { font-size: 11.5px; color: var(--text-muted); font-variant-numeric: tabular-nums; text-align: right; }
+  .lrow .t { min-width: 0; font-size: 14.5px; font-weight: 500; letter-spacing: -0.3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lrow .a { font-size: 11px; color: var(--text-secondary); }
+  .lrow .d { font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; text-align: right; }
   .lrow .acts { display: flex; align-items: center; gap: 2px; justify-self: end; z-index: 2; }
   .lrow .edit { position: static; opacity: 0; }
   .lrow:hover .edit, .lrow .edit:focus-visible { opacity: 1; }
@@ -246,12 +246,12 @@
   .archbar[aria-expanded="true"] .chev { transform: rotate(180deg); }
   .archpanel { background: rgba(105,118,131,.045); border-radius: 0 0 var(--radius-md) var(--radius-md); padding: 13px 15px 15px; }
   .archnote { font-size: 11.5px; color: var(--text-muted); margin-bottom: 10px; }
-  .archgrid { columns: 280px 6; column-gap: 11px; }
+  .archgrid { columns: 280px 5; column-gap: 11px; }
   .acard { position: relative; break-inside: avoid; margin-bottom: 9px; background: rgba(105,118,131,.06);
     border-radius: 11px; padding: 10px 44px 10px 13px; }
   .acard:hover { background: rgba(105,118,131,.12); }
-  .acard .ct { font-size: 12px; font-weight: 500; line-height: 1.45; color: var(--text-secondary); }
-  .acard .cm { margin-top: 4px; font-size: 10.5px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .acard .ct { font-size: 13.5px; font-weight: 500; line-height: 1.5; letter-spacing: -0.2px; color: var(--text-secondary); }
+  .acard .cm { margin-top: 6px; font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
   .acard .edit { opacity: 0; right: 9px; }
   .acard:hover .edit, .acard .edit:focus-visible { opacity: 1; }
 
@@ -848,7 +848,26 @@ function render() {
 
   document.getElementById('content').innerHTML = html;
   wireContent();
+  fitBoardColumns();
 }
+
+
+/* 보드 열 맞춤 — 최대 5열이지만, 가장 큰 칸이 높이를 정하기 때문에
+   넓은 화면에서 열 하나가 비는 경우가 생긴다. 실제로 쓰이는 열 수를 재서
+   그만큼으로 줄여 남는 가로 공간 없이 꽉 채운다. */
+function fitBoardColumns() {
+  const bd = document.querySelector('.board');
+  if (!bd) return;
+  bd.style.columnCount = '';
+  for (let i = 0; i < 3; i++) {
+    const lefts = new Set([...bd.querySelectorAll('.col')].map(c => Math.round(c.getBoundingClientRect().left)));
+    const used = lefts.size;
+    if (!used || String(used) === bd.style.columnCount) break;
+    bd.style.columnCount = String(used);
+  }
+}
+let fitTimer = null;
+window.addEventListener('resize', () => { clearTimeout(fitTimer); fitTimer = setTimeout(fitBoardColumns, 120); });
 
 function wireContent() {
   const root = document.getElementById('content');

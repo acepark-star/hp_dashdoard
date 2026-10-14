@@ -188,7 +188,7 @@
   .card:hover { box-shadow: var(--shadow-hover); transform: translateY(-1px); }
   .card-link { position: absolute; inset: 0; z-index: 1; border-radius: inherit; }
   .card-link:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-  .card .ct { font-size: 14.5px; font-weight: 600; line-height: 1.5; letter-spacing: -0.3px; word-break: keep-all; }
+  .card .ct { font-size: 15px; font-weight: 600; line-height: 1.5; letter-spacing: -0.3px; word-break: keep-all; }
   .card .cm { margin-top: 8px; font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
   .card.isfav { box-shadow: 0 1px 2px -1px rgba(243,81,29,.22), inset 0 0 0 1px rgba(255,106,59,.32); }
   .card.isfav:hover { box-shadow: var(--shadow-hover), inset 0 0 0 1px rgba(255,106,59,.46); }
@@ -216,7 +216,7 @@
   .lrow:hover { background: var(--fill); }
   .lrow .card-link { border-radius: 0; }
   .lrow .fav { position: static; justify-self: start; }
-  .lrow .t { min-width: 0; font-size: 14.5px; font-weight: 500; letter-spacing: -0.3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lrow .t { min-width: 0; font-size: 15px; font-weight: 500; letter-spacing: -0.3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .lrow .a { font-size: 11px; color: var(--text-secondary); }
   .lrow .d { font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; text-align: right; }
   .lrow .acts { display: flex; align-items: center; gap: 2px; justify-self: end; z-index: 2; }
@@ -449,7 +449,10 @@
         <option value="미사용">미사용 (보관함)</option>
       </select>
     </div>
-    <div class="field"><label>작성자</label><div class="field-readonly" id="f-author"></div></div>
+    <div class="field">
+      <label for="f-author">작성자</label>
+      <input type="text" id="f-author" placeholder="작성자 이름" />
+    </div>
     <div class="field"><label>등록일</label><div class="field-readonly" id="f-date"></div></div>
     <button class="btn-submit" id="submitBtn">추가하기</button>
   </div>
@@ -746,8 +749,20 @@ function cardEl(d, q) {
     + '<div class="ct">' + highlight(d.title, q) + '</div>'
     + '<div class="cm">' + highlight(d.author, q) + ' · ' + esc(d.date || '') + '</div></div>';
 }
+/* 등록 순서용 시각 — createdAt(서버 타임스탬프)이 없으면 등록일 문자열로 대체 */
+function createdMs(d) {
+  const t = d && d.createdAt;
+  if (t && typeof t.toMillis === 'function') return t.toMillis();
+  if (t && typeof t.seconds === 'number') return t.seconds * 1000;
+  const p = Date.parse(String((d && d.date) || '').replace(/\./g, '-').replace(/-+$/, ''));
+  return isNaN(p) ? 0 : p;
+}
 function groupsOf(items) {
-  return ORDER.map(c => ({ c, items: items.filter(d => (d.category || '기타') === c) })).filter(g => g.items.length);
+  return ORDER.map(c => ({
+    c,
+    /* 카테고리 안에서는 등록한 순서(먼저 등록한 것이 위) */
+    items: items.filter(d => (d.category || '기타') === c).sort((a, b) => createdMs(a) - createdMs(b)),
+  })).filter(g => g.items.length);
 }
 function boardHTML(gs, q) {
   return '<div class="board">' + gs.map(g =>
@@ -963,7 +978,7 @@ function openModal(mode, dashboard) {
     document.getElementById('f-title').value = dashboard.title || '';
     document.getElementById('f-url').value = dashboard.url || '';
     document.getElementById('f-category').value = dashboard.category || '';
-    document.getElementById('f-author').textContent = dashboard.author || '';
+    document.getElementById('f-author').value = dashboard.author || '';
     document.getElementById('f-date').textContent = dashboard.date || '';
     document.getElementById('submitBtn').textContent = '수정 완료';
   } else {
@@ -977,7 +992,7 @@ function openModal(mode, dashboard) {
       const nick = u.email.split('@')[0].split('.')[0];
       if (nick) author = nick.charAt(0).toUpperCase() + nick.slice(1).toLowerCase();
     }
-    document.getElementById('f-author').textContent = author;
+    document.getElementById('f-author').value = author;
     document.getElementById('f-date').textContent = todayStr;
     document.getElementById('submitBtn').textContent = '추가하기';
   }
@@ -1015,7 +1030,7 @@ document.getElementById('f-category').addEventListener('change', () => setFieldE
 document.getElementById('submitBtn').onclick = async () => {
   const title    = document.getElementById('f-title').value.trim();
   const url      = document.getElementById('f-url').value.trim();
-  const author   = document.getElementById('f-author').textContent.trim();
+  const author   = document.getElementById('f-author').value.trim();
   const category = document.getElementById('f-category').value;
 
   clearAllErrors();
@@ -1030,7 +1045,7 @@ document.getElementById('submitBtn').onclick = async () => {
   try {
     if (modalMode === 'edit' && editingId) {
       await db.collection('dashboards').doc(editingId).update({
-        title, url, category,
+        title, url, author, category,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
         updatedBy: auth.currentUser ? auth.currentUser.uid : null,
       });

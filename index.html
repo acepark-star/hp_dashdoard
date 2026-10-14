@@ -98,7 +98,7 @@
   /* ── Top bar ── */
   .topbar {
     background: var(--surface); border-bottom: 1px solid var(--line);
-    padding: 0 20px; display: flex; align-items: center; gap: 14px; height: 56px;
+    padding: 0 24px; display: flex; align-items: center; gap: 14px; height: 56px;
     position: sticky; top: 0; z-index: 40;
   }
   .brand { display: flex; align-items: center; gap: 9px; flex: 0 0 auto; }
@@ -143,7 +143,7 @@
   .seg svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; }
 
   /* ── Page ── */
-  .page { padding: 18px 20px 28px; max-width: 1480px; margin: 0 auto; }
+  .page { padding: 20px 24px 32px; }
   .notice { display: none; align-items: center; gap: 10px; background: #fbf9f1; border-radius: var(--radius-md);
     padding: 10px 14px; font-size: 12.5px; color: #7a6a1f; margin-bottom: 14px; }
   .notice.visible { display: flex; }
@@ -171,9 +171,8 @@
   .recent-empty { font-size: 12.5px; color: var(--text-muted); }
 
   /* ── 보드형 ── */
-  .board { columns: 4; column-gap: 14px; }
-  @media (max-width: 1240px) { .board { columns: 3; } }
-  @media (max-width: 940px) { .board { columns: 2; } }
+  /* 칸 최소 폭 300px, 최대 6열 — 창 폭에 따라 열 수가 자동으로 늘고 준다 */
+  .board { columns: 300px 6; column-gap: 14px; }
   .col { break-inside: avoid; display: block; margin: 0 0 14px; min-width: 0;
     background: var(--tray); border-radius: var(--radius-lg); padding: 12px 12px 13px; }
   .colh { display: flex; align-items: center; gap: 8px; padding: 0 1px 11px; }
@@ -247,10 +246,7 @@
   .archbar[aria-expanded="true"] .chev { transform: rotate(180deg); }
   .archpanel { background: rgba(105,118,131,.045); border-radius: 0 0 var(--radius-md) var(--radius-md); padding: 13px 15px 15px; }
   .archnote { font-size: 11.5px; color: var(--text-muted); margin-bottom: 10px; }
-  .archgrid { columns: 4; column-gap: 11px; }
-  @media (max-width: 1240px) { .archgrid { columns: 3; } }
-  @media (max-width: 940px) { .archgrid { columns: 2; } }
-  @media (max-width: 640px) { .archgrid { columns: 1; } }
+  .archgrid { columns: 280px 6; column-gap: 11px; }
   .acard { position: relative; break-inside: avoid; margin-bottom: 9px; background: rgba(105,118,131,.06);
     border-radius: 11px; padding: 10px 44px 10px 13px; }
   .acard:hover { background: rgba(105,118,131,.12); }

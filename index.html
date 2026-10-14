@@ -102,9 +102,9 @@
     position: sticky; top: 0; z-index: 40;
   }
   .brand { display: flex; align-items: center; gap: 9px; flex: 0 0 auto; }
-  .brand img { width: 22px; height: 22px; object-fit: contain; }
-  .brand b { font-size: 14px; font-weight: 700; letter-spacing: -.02em; white-space: nowrap; }
-  .brand .sub { font-size: 11px; color: var(--text-muted); font-weight: 500; }
+  .brand img { width: 26px; height: 26px; object-fit: contain; }
+  .brand b { font-size: 20px; font-weight: 700; letter-spacing: -.02em; white-space: nowrap; }
+  .brand .sub { font-size: 12px; color: var(--text-muted); font-weight: 500; white-space: nowrap; }
   .tb-spacer { flex: 1 1 auto; }
   .tb-search { position: relative; flex: 0 1 260px; min-width: 110px; }
   .tb-search input {
@@ -189,6 +189,8 @@
   .card-link { position: absolute; inset: 0; z-index: 1; border-radius: inherit; }
   .card-link:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   .card .ct { font-size: 15px; font-weight: 600; line-height: 1.5; letter-spacing: -0.3px; word-break: keep-all; }
+  .card .cd { margin-top: 6px; font-size: 12.5px; font-weight: 400; line-height: 1.55;
+    letter-spacing: -0.2px; color: var(--text-secondary); word-break: keep-all; }
   .card .cm { margin-top: 8px; font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
   .card.isfav { box-shadow: 0 1px 2px -1px rgba(243,81,29,.22), inset 0 0 0 1px rgba(255,106,59,.32); }
   .card.isfav:hover { box-shadow: var(--shadow-hover), inset 0 0 0 1px rgba(255,106,59,.46); }
@@ -298,6 +300,7 @@
   .modal-close svg { width: 15px; height: 15px; stroke: var(--text-muted); fill: none; }
   .field { margin-bottom: 14px; }
   .field label { display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
+  .field label .opt { font-weight: 500; color: var(--text-muted); }
   .field-label-row { display: flex; align-items: baseline; gap: 8px; }
   .field-label-row label { margin-bottom: 6px; }
   .field-error { font-size: 11.5px; color: #cf4040; margin-left: auto; }
@@ -310,6 +313,8 @@
     color: #fff; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; margin-top: 6px; }
   .btn-submit:hover { background: var(--primary-strong); }
   .btn-submit:disabled { background: rgba(105,118,131,.25); cursor: not-allowed; }
+
+  .lrow .t .sub { font-weight: 400; color: var(--text-muted); margin-left: 7px; }
 
   .hl { background: #fff3a8; border-radius: 3px; }
 
@@ -378,7 +383,7 @@
   <div class="topbar">
     <div class="brand">
       <img id="brandLogo" alt="" />
-      <b>대시보드 모음집</b><span class="sub">영업팀</span>
+      <b>Unni Sales</b><span class="sub">강남언니 영업팀 대시보드 모음</span>
     </div>
     <div class="tb-spacer"></div>
     <div class="seg" id="viewSeg">
@@ -389,7 +394,7 @@
     </div>
     <div class="tb-search">
       <svg class="si" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5 21 21" stroke-linecap="round"/></svg>
-      <input type="text" id="searchInput" placeholder="제목, 작성자 검색" aria-label="대시보드 검색" />
+      <input type="text" id="searchInput" placeholder="제목, 설명, 작성자 검색" aria-label="대시보드 검색" />
     </div>
     <button class="tb-btn" id="btnAdd"><span class="lbl-lg">대시보드 추가</span><span class="lbl-sm">추가</span></button>
     <button class="tb-btn tb-ghost hide-sm" id="btnManage">관리</button>
@@ -429,6 +434,10 @@
     <div class="field">
       <div class="field-label-row"><label for="f-title">제목</label><span class="field-error" id="err-title"></span></div>
       <input type="text" id="f-title" placeholder="대시보드 제목" />
+    </div>
+    <div class="field">
+      <label for="f-desc">설명 <span class="opt">선택</span></label>
+      <input type="text" id="f-desc" placeholder="어떤 대시보드인지 한 줄 설명" maxlength="80" />
     </div>
     <div class="field">
       <div class="field-label-row"><label for="f-url">URL</label><span class="field-error" id="err-url"></span></div>
@@ -716,7 +725,7 @@ function ago(t) {
 const isArchived = d => (d.category || '') === ARCHIVE_CATEGORY;
 function matches(d, q) {
   if (!q) return true;
-  return ((d.title||'') + ' ' + (d.author||'') + ' ' + (d.date||'')).toLowerCase().includes(q);
+  return ((d.title||'') + ' ' + (d.desc||'') + ' ' + (d.author||'') + ' ' + (d.date||'')).toLowerCase().includes(q);
 }
 function safeUrl(u) {
   const s = String(u || '').trim();
@@ -736,17 +745,21 @@ function favBtn(d) {
 function editBtn(d) {
   return '<button type="button" class="edit" data-edit="' + esc(d.id) + '" aria-label="수정" title="수정">' + SVG_EDIT + '</button>';
 }
+function descEl(d, q) {
+  const t = (d.desc || '').trim();
+  return t ? '<div class="cd">' + highlight(t, q) + '</div>' : '';
+}
 function cardEl(d, q) {
   if (deleteMode) {
     const sel = selectedIds.has(d.id);
     return '<div class="card selectable' + (sel ? ' selected' : '') + '" data-select="' + esc(d.id) + '">'
       + '<div class="card-checkbox">' + (sel ? '✓' : '') + '</div>'
-      + '<div class="ct">' + highlight(d.title, q) + '</div>'
+      + '<div class="ct">' + highlight(d.title, q) + '</div>' + descEl(d, q)
       + '<div class="cm">' + highlight(d.author, q) + ' · ' + esc(d.date || '') + '</div></div>';
   }
   return '<div class="card' + (state.fav.has(d.id) ? ' isfav' : '') + '">'
     + linkEl(d) + editBtn(d) + favBtn(d)
-    + '<div class="ct">' + highlight(d.title, q) + '</div>'
+    + '<div class="ct">' + highlight(d.title, q) + '</div>' + descEl(d, q)
     + '<div class="cm">' + highlight(d.author, q) + ' · ' + esc(d.date || '') + '</div></div>';
 }
 /* 등록 순서용 시각 — createdAt(서버 타임스탬프)이 없으면 등록일 문자열로 대체 */
@@ -770,17 +783,21 @@ function boardHTML(gs, q) {
     + '<span class="n">' + g.items.length + '</span></div>'
     + '<div class="colbody">' + g.items.map(d => cardEl(d, q)).join('') + '</div></div>').join('') + '</div>';
 }
+function listSub(d, q) {
+  const t = (d.desc || '').trim();
+  return t ? '<span class="sub">' + highlight(t, q) + '</span>' : '';
+}
 function listRow(d, q) {
   if (deleteMode) {
     const sel = selectedIds.has(d.id);
     return '<div class="lrow selectable' + (sel ? ' selected' : '') + '" data-select="' + esc(d.id) + '">'
       + '<div class="card-checkbox">' + (sel ? '✓' : '') + '</div>'
-      + '<span class="t">' + highlight(d.title, q) + '</span>'
+      + '<span class="t">' + highlight(d.title, q) + listSub(d, q) + '</span>'
       + '<span class="a">' + highlight(d.author, q) + '</span>'
       + '<span class="d">' + esc(d.date || '') + '</span><span class="acts"></span></div>';
   }
   return '<div class="lrow">' + linkEl(d) + favBtn(d)
-    + '<span class="t">' + highlight(d.title, q) + '</span>'
+    + '<span class="t">' + highlight(d.title, q) + listSub(d, q) + '</span>'
     + '<span class="a">' + highlight(d.author, q) + '</span>'
     + '<span class="d">' + esc(d.date || '') + '</span>'
     + '<span class="acts">' + editBtn(d) + SVG_GO + '</span></div>';
@@ -798,7 +815,7 @@ function railHTML() {
   const body = items.length
     ? '<div class="rail">' + items.map(d =>
         '<div class="card isfav">' + linkEl(d) + editBtn(d) + favBtn(d)
-        + '<div class="ct">' + esc(d.title) + '</div>'
+        + '<div class="ct">' + esc(d.title) + '</div>' + descEl(d, '')
         + '<div class="cm"><span class="dot" style="background:' + catColor(d.category) + '"></span> '
         + esc(d.category || '') + ' · ' + esc(d.date || '') + '</div></div>').join('') + '</div>'
     : '<div class="rail-empty">카드의 별을 눌러 자주 보는 대시보드를 담아보세요</div>';
@@ -976,6 +993,7 @@ function openModal(mode, dashboard) {
   if (mode === 'edit' && dashboard) {
     document.getElementById('modalTitle').textContent = '대시보드 수정하기';
     document.getElementById('f-title').value = dashboard.title || '';
+    document.getElementById('f-desc').value = dashboard.desc || '';
     document.getElementById('f-url').value = dashboard.url || '';
     document.getElementById('f-category').value = dashboard.category || '';
     document.getElementById('f-author').value = dashboard.author || '';
@@ -984,6 +1002,7 @@ function openModal(mode, dashboard) {
   } else {
     document.getElementById('modalTitle').textContent = '대시보드 추가하기';
     document.getElementById('f-title').value = '';
+    document.getElementById('f-desc').value = '';
     document.getElementById('f-url').value = '';
     document.getElementById('f-category').value = '';
     const u = auth.currentUser;
@@ -1029,6 +1048,7 @@ document.getElementById('f-category').addEventListener('change', () => setFieldE
 
 document.getElementById('submitBtn').onclick = async () => {
   const title    = document.getElementById('f-title').value.trim();
+  const desc     = document.getElementById('f-desc').value.trim();
   const url      = document.getElementById('f-url').value.trim();
   const author   = document.getElementById('f-author').value.trim();
   const category = document.getElementById('f-category').value;
@@ -1045,14 +1065,14 @@ document.getElementById('submitBtn').onclick = async () => {
   try {
     if (modalMode === 'edit' && editingId) {
       await db.collection('dashboards').doc(editingId).update({
-        title, url, author, category,
+        title, desc, url, author, category,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
         updatedBy: auth.currentUser ? auth.currentUser.uid : null,
       });
       logEvent('edit', { dashboardId: editingId, dashboardTitle: title, dashboardUrl: url, dashboardCategory: category });
     } else {
       await db.collection('dashboards').add({
-        title, url, author, category,
+        title, desc, url, author, category,
         date: todayStr,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         createdBy: auth.currentUser ? auth.currentUser.uid : null,

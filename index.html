@@ -101,7 +101,8 @@
     padding: 0 24px; display: flex; align-items: center; gap: 14px; height: 56px;
     position: sticky; top: 0; z-index: 40;
   }
-  .brand { display: flex; align-items: center; gap: 9px; flex: 0 0 auto; }
+  .brand { display: flex; align-items: baseline; gap: 9px; flex: 0 0 auto; }
+  .brand img { align-self: center; }
   .brand img { width: 26px; height: 26px; object-fit: contain; }
   .brand b { font-size: 20px; font-weight: 700; letter-spacing: -.02em; white-space: nowrap; }
   .brand .sub { font-size: 12px; color: var(--text-muted); font-weight: 500; white-space: nowrap; }
@@ -189,8 +190,11 @@
   .card-link { position: absolute; inset: 0; z-index: 1; border-radius: inherit; }
   .card-link:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   .card .ct { font-size: 15px; font-weight: 600; line-height: 1.5; letter-spacing: -0.3px; word-break: keep-all; }
-  .card .cd { margin-top: 6px; font-size: 12.5px; font-weight: 400; line-height: 1.55;
-    letter-spacing: -0.2px; color: var(--text-secondary); word-break: keep-all; }
+  /* 설명은 항상 한 줄. 버튼은 카드 상단에만 있으므로 오른쪽 여백을 되돌려 폭을 넓게 쓴다 */
+  .card .cd { margin-top: 6px; margin-right: -42px; font-size: 12.5px; font-weight: 400; line-height: 1.55;
+    letter-spacing: -0.2px; color: var(--text-secondary);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card.selectable .cd { margin-right: 0; }
   .card .cm { margin-top: 8px; font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
   .card.isfav { box-shadow: 0 1px 2px -1px rgba(243,81,29,.22), inset 0 0 0 1px rgba(255,106,59,.32); }
   .card.isfav:hover { box-shadow: var(--shadow-hover), inset 0 0 0 1px rgba(255,106,59,.46); }
@@ -301,6 +305,9 @@
   .field { margin-bottom: 14px; }
   .field label { display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
   .field label .opt { font-weight: 500; color: var(--text-muted); }
+  .field-hint { margin-top: 5px; font-size: 11px; color: var(--text-muted); text-align: right;
+    font-variant-numeric: tabular-nums; }
+  .field-hint.full { color: #cf4040; font-weight: 600; }
   .field-label-row { display: flex; align-items: baseline; gap: 8px; }
   .field-label-row label { margin-bottom: 6px; }
   .field-error { font-size: 11.5px; color: #cf4040; margin-left: auto; }
@@ -436,8 +443,9 @@
       <input type="text" id="f-title" placeholder="대시보드 제목" />
     </div>
     <div class="field">
-      <label for="f-desc">설명 <span class="opt">선택</span></label>
-      <input type="text" id="f-desc" placeholder="어떤 대시보드인지 한 줄 설명" maxlength="80" />
+      <div class="field-label-row"><label for="f-desc">설명 <span class="opt">선택</span></label><span class="field-error" id="err-desc"></span></div>
+      <input type="text" id="f-desc" placeholder="한 줄 설명" />
+      <div class="field-hint" id="descHint"><span id="descCount">0</span> / <span id="descMax"></span>자</div>
     </div>
     <div class="field">
       <div class="field-label-row"><label for="f-url">URL</label><span class="field-error" id="err-url"></span></div>
@@ -993,7 +1001,7 @@ function openModal(mode, dashboard) {
   if (mode === 'edit' && dashboard) {
     document.getElementById('modalTitle').textContent = '대시보드 수정하기';
     document.getElementById('f-title').value = dashboard.title || '';
-    document.getElementById('f-desc').value = dashboard.desc || '';
+    document.getElementById('f-desc').value = (dashboard.desc || '').slice(0, DESC_MAX);
     document.getElementById('f-url').value = dashboard.url || '';
     document.getElementById('f-category').value = dashboard.category || '';
     document.getElementById('f-author').value = dashboard.author || '';
@@ -1016,6 +1024,7 @@ function openModal(mode, dashboard) {
     document.getElementById('submitBtn').textContent = '추가하기';
   }
   clearAllErrors();
+  refreshDesc(false);
   overlay.style.display = 'flex';
   requestAnimationFrame(() => { overlay.offsetHeight; overlay.classList.add('open'); });
   setTimeout(() => document.getElementById('f-title').focus(), 180);
@@ -1032,6 +1041,39 @@ document.addEventListener('keydown', e => {
   else if (deleteMode) exitDeleteMode();
 });
 
+/* 설명은 보드 카드에서 한 줄로만 보여야 한다. 가장 좁은 칸(약 291px)에서
+   잘리지 않는 한글 기준 글자 수로 상한을 잡고, 그 이상은 입력 자체를 막는다. */
+const DESC_MAX = 20;
+const descInput = document.getElementById('f-desc');
+const descHint  = document.getElementById('descHint');
+const descCount = document.getElementById('descCount');
+document.getElementById('descMax').textContent = DESC_MAX;
+descInput.setAttribute('maxlength', String(DESC_MAX));
+let descComposing = false;
+function descLimitMsg(show) {
+  setFieldError('f-desc', 'err-desc', show ? '설명은 ' + DESC_MAX + '자까지 쓸 수 있어요' : '');
+}
+function refreshDesc(hitLimit) {
+  if (!descComposing && descInput.value.length > DESC_MAX) {
+    descInput.value = descInput.value.slice(0, DESC_MAX);   /* IME·붙여넣기 보정 */
+    hitLimit = true;
+  }
+  const n = descInput.value.length;
+  descCount.textContent = n;
+  descHint.classList.toggle('full', n >= DESC_MAX);
+  if (hitLimit) descLimitMsg(true);
+  else if (n < DESC_MAX) descLimitMsg(false);
+}
+descInput.addEventListener('compositionstart', () => { descComposing = true; });
+descInput.addEventListener('compositionend', () => { descComposing = false; refreshDesc(false); });
+descInput.addEventListener('beforeinput', e => {
+  if (!e.inputType || e.inputType.indexOf('insert') !== 0) return;   /* 지우기는 통과 */
+  const sel = descInput.selectionEnd - descInput.selectionStart;
+  const add = (e.data || (e.dataTransfer && e.dataTransfer.getData('text')) || ' ').length;
+  if (descInput.value.length - sel + add > DESC_MAX) refreshDesc(true);
+});
+descInput.addEventListener('input', () => refreshDesc(false));
+
 function setFieldError(inputId, errId, msg) {
   const inp = document.getElementById(inputId);
   const err = document.getElementById(errId);
@@ -1039,7 +1081,7 @@ function setFieldError(inputId, errId, msg) {
   if (err) err.textContent = msg;
 }
 function clearAllErrors() {
-  [['f-title','err-title'],['f-url','err-url'],['f-category','err-category']].forEach(([i,e]) => setFieldError(i, e, ''));
+  [['f-title','err-title'],['f-desc','err-desc'],['f-url','err-url'],['f-category','err-category']].forEach(([i,e]) => setFieldError(i, e, ''));
 }
 ['f-title','f-url'].forEach(id => {
   document.getElementById(id).addEventListener('input', () => setFieldError(id, 'err-' + id.slice(2).toLowerCase(), ''));
@@ -1048,7 +1090,7 @@ document.getElementById('f-category').addEventListener('change', () => setFieldE
 
 document.getElementById('submitBtn').onclick = async () => {
   const title    = document.getElementById('f-title').value.trim();
-  const desc     = document.getElementById('f-desc').value.trim();
+  const desc     = document.getElementById('f-desc').value.trim().slice(0, DESC_MAX);
   const url      = document.getElementById('f-url').value.trim();
   const author   = document.getElementById('f-author').value.trim();
   const category = document.getElementById('f-category').value;

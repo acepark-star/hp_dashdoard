@@ -652,6 +652,7 @@ const effectiveView = () => mobileMQ.matches ? 'list' : state.view;
    1순위 Firestore userPrefs/{uid} (기기 간 동기화), 폴백 localStorage (이 브라우저 전용).
    보안 규칙에 userPrefs 블록이 없으면 permission-denied 가 나므로 자동으로 폴백한다. */
 const PREFS_KEY = 'unni-dash-prefs-v1';
+const RECENT_MAX = 5;   /* 최근 본 항목은 최대 5건만 남긴다 */
 let prefsRef = null;
 let prefsRemoteOK = true;
 let prefsLoaded = false;
@@ -671,7 +672,7 @@ function applyPrefs(p) {
   if (p.viewMode === 'list' || p.viewMode === 'board') state.view = p.viewMode;
   if (Array.isArray(p.fav)) state.fav = new Set(p.fav);
   if (Array.isArray(p.favorites)) state.fav = new Set(p.favorites);
-  if (Array.isArray(p.recent)) state.recent = p.recent.filter(r => r && r.id).slice(0, 6);
+  if (Array.isArray(p.recent)) state.recent = p.recent.filter(r => r && r.id).slice(0, RECENT_MAX);
 }
 function showPrefsNotice() {
   try { if (sessionStorage.getItem('prefsNoticeDismissed')) return; } catch(e) {}
@@ -909,17 +910,19 @@ function railHTML() {
         + esc(d.category || '') + ' · ' + esc(d.date || '') + '</div></div>').join('') + '</div>'
     : '<div class="rail-empty">카드의 별을 눌러 자주 보는 대시보드를 담아보세요</div>';
   return '<div class="sec-h"><svg class="star-ico" viewBox="0 0 24 24">' + STAR_PATH + '</svg>'
-    + '즐겨찾기<span class="n">' + items.length + '</span><i class="rule"></i></div>' + body;
+    + '즐겨찾기<span class="n">' + items.length + '건</span><i class="rule"></i></div>' + body;
 }
 function recentHTML() {
-  const items = state.recent.map(r => ({ d: dashboards.find(x => x.id === r.id), at: r.at })).filter(r => r.d);
+  const items = state.recent.map(r => ({ d: dashboards.find(x => x.id === r.id), at: r.at }))
+                            .filter(r => r.d).slice(0, RECENT_MAX);
   const body = items.length
     ? '<div class="recent">' + items.map(r =>
         '<div class="rchip">' + linkEl(r.d)
         + '<span class="dot" style="background:' + catColor(r.d.category) + '"></span>'
         + '<span class="t">' + esc(r.d.title) + '</span><span class="ago">' + ago(r.at) + '</span></div>').join('') + '</div>'
     : '<div class="recent-empty">대시보드를 열면 여기에 쌓입니다</div>';
-  return '<div class="sec-h" style="margin-top:22px">최근 본 항목<i class="rule"></i></div>' + body;
+  return '<div class="sec-h" style="margin-top:22px">최근 본 항목'
+    + '<span class="n">최대 ' + RECENT_MAX + '건</span><i class="rule"></i></div>' + body;
 }
 function archiveHTML(q) {
   const items = dashboards.filter(d => isArchived(d) && matches(d, q));
@@ -1167,7 +1170,7 @@ function wireContent() {
   }));
   root.querySelectorAll('[data-open]').forEach(a => a.addEventListener('click', () => {
     const id = a.dataset.open;
-    state.recent = [{ id, at: Date.now() }].concat(state.recent.filter(r => r.id !== id)).slice(0, 6);
+    state.recent = [{ id, at: Date.now() }].concat(state.recent.filter(r => r.id !== id)).slice(0, RECENT_MAX);
     savePrefs();
     setTimeout(render, 0);   // 새 탭이 열린 뒤 목록 갱신
   }));

@@ -38,6 +38,10 @@
     --shadow-hover: 0 3px 12px -3px rgba(23,23,23,.18);
   }
 
+  /* 스크롤 끝에서 화면이 튕기면(러버밴드) 고정된 상단바·편집 띠가 같이 밀려 보인다.
+     바깥으로 넘기는 스크롤 자체를 막아 끝에서도 제자리에 있게 한다. */
+  html, body { overscroll-behavior: none; }
+
   body {
     font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo", sans-serif;
     background: var(--bg);

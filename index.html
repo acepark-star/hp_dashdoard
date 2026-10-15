@@ -125,35 +125,39 @@
   .tb-ghost.active { background: var(--primary-bg); color: var(--primary-strong); border-color: rgba(255,84,15,.35); }
   .lbl-sm { display: none; }
 
-  /* ── 순서 편집 ── */
+  /* ── 순서 편집 ──
+     편집 중에도 평소 보던 뷰(보드/리스트) 그대로 보여준다. 저장했을 때
+     실제로 어떤 모습이 되는지 그 자리에서 확인할 수 있어야 하기 때문. */
+  .ro-sticky { position: sticky; top: 56px; z-index: 30; background: var(--bg);
+    padding: 12px 0 10px; margin: -12px 0 4px; }
   .ro-bar { display: flex; align-items: center; gap: 10px; background: var(--primary-bg);
-    color: var(--primary-strong); border-radius: var(--radius-md); padding: 11px 14px; margin-bottom: 16px;
+    color: var(--primary-strong); border-radius: var(--radius-md); padding: 11px 14px;
     font-size: 12.5px; font-weight: 600; }
   .ro-bar .sp { flex: 1 1 auto; }
-  .ro-bar .hint { font-weight: 500; color: var(--text-secondary); }
+  .ro-bar .hint { font-weight: 500; color: var(--text-secondary); min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ro-save, .ro-cancel { height: 32px; border-radius: var(--radius-sm); font: inherit; font-size: 12.5px;
-    font-weight: 600; padding: 0 14px; cursor: pointer; border: 0; }
+    font-weight: 600; padding: 0 14px; cursor: pointer; border: 0; flex: 0 0 auto; }
   .ro-save { background: var(--primary); color: #fff; }
   .ro-save:hover { background: var(--primary-strong); }
   .ro-save:disabled { background: rgba(105,118,131,.25); cursor: not-allowed; }
   .ro-cancel { background: transparent; border: 1px solid var(--line); color: var(--text-secondary); }
   .ro-cancel:hover { background: var(--fill); }
-  .rolist { display: flex; flex-direction: column; gap: 10px; max-width: 680px; }
-  .rocat { background: var(--fill); border-radius: var(--radius-md); padding: 10px 12px 12px; }
-  .rocat.dragging { opacity: .4; }
-  .rocat-h { display: flex; align-items: center; gap: 8px; padding: 2px 2px 9px; cursor: grab; }
-  .rocat-h .n { margin-left: auto; font-size: 11.5px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
-  .rocat-b { display: flex; flex-direction: column; gap: 6px; min-height: 10px; }
-  .roitem { display: flex; align-items: center; gap: 8px; background: var(--surface); border-radius: 10px;
-    padding: 9px 12px; box-shadow: var(--shadow-card); cursor: grab; }
-  .roitem.dragging { opacity: .4; }
-  .roitem .t { flex: 1 1 auto; min-width: 0; font-size: 13.5px; font-weight: 500; letter-spacing: -0.2px;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .roitem .a { font-size: 11px; color: var(--text-muted); flex: 0 0 auto; }
-  .rogrip { width: 13px; height: 13px; flex: 0 0 auto; stroke: var(--text-muted); fill: none; stroke-width: 1.8;
-    stroke-linecap: round; }
-  .roitem:focus-visible, .rocat:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-  .roempty { font-size: 11.5px; color: var(--text-muted); padding: 4px 2px; }
+
+  body.reorder-mode .colh, body.reorder-mode .lgrp { cursor: grab; }
+  body.reorder-mode .card, body.reorder-mode .lrow { cursor: grab; }
+  body.reorder-mode .card:hover { transform: none; }
+  body.reorder-mode .lrow:hover { background: transparent; }
+  .dragging { opacity: .35; }
+  .col.dragging, .lgrpbox.dragging { opacity: .45; }
+  .rogrip { width: 13px; height: 13px; flex: 0 0 auto; stroke: var(--text-muted); fill: none;
+    stroke-width: 1.8; stroke-linecap: round; }
+  .card .rogrip { position: absolute; top: 12px; right: 11px; z-index: 2; }
+  .lrow .rogrip { justify-self: start; }
+  .colh .rogrip, .lgrp .rogrip { margin-right: -2px; }
+  .card.roitem:focus-visible, .lrow.roitem:focus-visible,
+  .col:focus-visible, .lgrpbox:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+  .lgrpbody { display: block; }
   .tb-user { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
   .avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--primary-bg); color: var(--primary-strong);
     display: grid; place-items: center; font-size: 11px; font-weight: 700; overflow: hidden; }
@@ -833,6 +837,12 @@ function descEl(d, q) {
   return t ? '<div class="cd">' + highlight(t, q) + '</div>' : '';
 }
 function cardEl(d, q) {
+  if (reorderMode) {
+    return '<div class="card roitem" draggable="true" data-item="' + esc(d.id) + '" tabindex="0">'
+      + SVG_GRIP
+      + '<div class="ct">' + esc(d.title) + '</div>' + descEl(d, '')
+      + '<div class="cm">' + esc(d.author || '') + ' · ' + esc(d.date || '') + '</div></div>';
+  }
   if (deleteMode) {
     const sel = selectedIds.has(d.id);
     return '<div class="card selectable' + (sel ? ' selected' : '') + '" data-select="' + esc(d.id) + '">'
@@ -868,16 +878,28 @@ function groupsOf(items) {
   })).filter(g => g.items.length);
 }
 function boardHTML(gs, q) {
+  const ro = reorderMode;
   return '<div class="board">' + gs.map(g =>
-    '<div class="col"><div class="colh"><span class="chip" style="' + chipStyle(g.c) + '">' + esc(g.c) + '</span>'
+    '<div class="col" data-cat="' + esc(g.c) + '"' + (ro ? ' tabindex="0"' : '') + '>'
+    + '<div class="colh"' + (ro ? ' draggable="true"' : '') + '>'
+    + (ro ? SVG_GRIP : '')
+    + '<span class="chip" style="' + chipStyle(g.c) + '">' + esc(g.c) + '</span>'
     + '<span class="n">' + g.items.length + '</span></div>'
-    + '<div class="colbody">' + g.items.map(d => cardEl(d, q)).join('') + '</div></div>').join('') + '</div>';
+    + '<div class="colbody" data-body="' + esc(g.c) + '">'
+    + g.items.map(d => cardEl(d, q)).join('') + '</div></div>').join('') + '</div>';
 }
 function listSub(d, q) {
   const t = (d.desc || '').trim();
   return t ? '<span class="sub">' + highlight(t, q) + '</span>' : '';
 }
 function listRow(d, q) {
+  if (reorderMode) {
+    return '<div class="lrow roitem" draggable="true" data-item="' + esc(d.id) + '" tabindex="0">'
+      + SVG_GRIP
+      + '<span class="t">' + esc(d.title) + listSub(d, '') + '</span>'
+      + '<span class="a">' + esc(d.author || '') + '</span>'
+      + '<span class="d">' + esc(d.date || '') + '</span><span class="acts"></span></div>';
+  }
   if (deleteMode) {
     const sel = selectedIds.has(d.id);
     return '<div class="lrow selectable' + (sel ? ' selected' : '') + '" data-select="' + esc(d.id) + '">'
@@ -893,11 +915,16 @@ function listRow(d, q) {
     + '<span class="acts">' + editBtn(d) + SVG_GO + '</span></div>';
 }
 function listHTML(gs, q) {
+  const ro = reorderMode;
   return '<div class="list">'
     + '<div class="lhead"><div></div><div>제목</div><div class="a">작성자</div><div class="d">등록일</div><div></div></div>'
-    + gs.map(g => '<div class="lgrp"><span class="chip" style="' + chipStyle(g.c) + '">' + esc(g.c) + '</span>'
+    + gs.map(g => '<div class="lgrpbox" data-cat="' + esc(g.c) + '"' + (ro ? ' tabindex="0"' : '') + '>'
+        + '<div class="lgrp"' + (ro ? ' draggable="true"' : '') + '>'
+        + (ro ? SVG_GRIP : '')
+        + '<span class="chip" style="' + chipStyle(g.c) + '">' + esc(g.c) + '</span>'
         + '<span class="n">' + g.items.length + '</span></div>'
-        + g.items.map(d => listRow(d, q)).join('')).join('')
+        + '<div class="lgrpbody" data-body="' + esc(g.c) + '">'
+        + g.items.map(d => listRow(d, q)).join('') + '</div></div>').join('')
     + '</div>';
 }
 function railHTML() {
@@ -961,97 +988,110 @@ function buildDraft() {
     ids: active.filter(d => (d.category || '기타') === c).sort(cardSort).map(d => d.id),
   }));
 }
-function reorderHTML() {
+function draftGroups() {
   const byId = {};
   dashboards.forEach(d => { byId[d.id] = d; });
-  return '<div class="ro-bar"><b>순서 편집</b>'
-    + '<span class="hint">카드를 끌어 같은 카테고리 안에서 옮기고, 카테고리는 머리말을 끌어 옮기세요. 저장해야 모두에게 반영됩니다.</span>'
+  return draft.map(g => ({ c: g.c, items: g.ids.map(id => byId[id]).filter(Boolean) }))
+              .filter(g => g.items.length);
+}
+function reorderHTML() {
+  const gs = draftGroups();
+  const n = gs.reduce((t, g) => t + g.items.length, 0);
+  return '<div class="ro-sticky"><div class="ro-bar"><b>순서 편집</b>'
+    + '<span class="hint">카드는 같은 카테고리 안에서, 카테고리는 머리말을 끌어 옮기세요. 저장해야 모두에게 반영됩니다.</span>'
     + '<span class="sp"></span>'
     + '<button type="button" class="ro-cancel" id="roCancel">취소</button>'
-    + '<button type="button" class="ro-save" id="roSave" disabled>저장</button></div>'
-    + '<div class="rolist" id="roList">' + draft.map(g =>
-        '<div class="rocat" data-cat="' + esc(g.c) + '">'
-        + '<div class="rocat-h" draggable="true">' + SVG_GRIP
-        + '<span class="chip" style="' + chipStyle(g.c) + '">' + esc(g.c) + '</span>'
-        + '<span class="n">' + g.ids.length + '</span></div>'
-        + '<div class="rocat-b" data-body="' + esc(g.c) + '">'
-        + (g.ids.length ? g.ids.map(id => {
-            const d = byId[id];
-            if (!d) return '';
-            return '<div class="roitem" draggable="true" data-item="' + esc(id) + '" tabindex="0">'
-              + SVG_GRIP + '<span class="t">' + esc(d.title) + '</span>'
-              + '<span class="a">' + esc(d.author || '') + '</span></div>';
-          }).join('') : '<div class="roempty">아직 대시보드가 없는 카테고리</div>')
-        + '</div></div>').join('') + '</div>';
+    + '<button type="button" class="ro-save" id="roSave" disabled>저장</button></div></div>'
+    + '<div class="sec-h">전체<span class="n">' + n + '건</span><i class="rule"></i></div>'
+    + (effectiveView() === 'board' ? boardHTML(gs, '') : listHTML(gs, ''));
 }
-/* 커서 위치 기준으로 어느 요소 앞에 끼울지 */
-function dropBefore(container, y, sel) {
-  let best = null, bestOff = -Infinity;
-  container.querySelectorAll(sel).forEach(el => {
-    if (el.classList.contains('dragging')) return;
+/* 커서 좌표로 "어느 요소의 앞/뒤에 넣을지" 판정.
+   보드는 칸이 가로로도 늘어서므로 세로 위치만으로는 안 되고 2차원으로 본다. */
+function dropSpot(container, sel, x, y, dragEl) {
+  const els = [...container.children].filter(el => el.matches(sel) && el !== dragEl);
+  let hit = null;
+  for (const el of els) {
     const b = el.getBoundingClientRect();
-    const off = y - b.top - b.height / 2;
-    if (off < 0 && off > bestOff) { bestOff = off; best = el; }
-  });
-  return best;
+    if (x >= b.left && x <= b.right && y >= b.top && y <= b.bottom) { hit = { el, b }; break; }
+  }
+  if (!hit) {
+    let bestD = Infinity;
+    els.forEach(el => {
+      const b = el.getBoundingClientRect();
+      const dx = Math.max(b.left - x, 0, x - b.right);
+      const dy = Math.max(b.top - y, 0, y - b.bottom);
+      const d = dx * dx + dy * dy;
+      if (d < bestD) { bestD = d; hit = { el, b }; }
+    });
+  }
+  if (!hit) return null;
+  return { el: hit.el, before: y < hit.b.top + hit.b.height / 2 };
+}
+function placeInto(container, sel, el, x, y) {
+  const spot = dropSpot(container, sel, x, y, el);
+  if (!spot) { container.appendChild(el); return; }
+  if (spot.before) container.insertBefore(el, spot.el);
+  else container.insertBefore(el, spot.el.nextSibling);
 }
 function readDraft() {
-  draft = [...document.querySelectorAll('#roList .rocat')].map(cat => ({
-    c: cat.dataset.cat,
-    ids: [...cat.querySelectorAll('.roitem')].map(el => el.dataset.item),
+  const root = document.getElementById('content');
+  draft = [...root.querySelectorAll('[data-cat]')].map(el => ({
+    c: el.dataset.cat,
+    ids: [...el.querySelectorAll('[data-item]')].map(x => x.dataset.item),
   }));
+  /* 화면에 없는 빈 카테고리는 기존 순서를 잃지 않도록 뒤에 그대로 붙인다 */
+  const shown = new Set(draft.map(g => g.c));
+  catOrder().forEach(c => { if (!shown.has(c)) draft.push({ c, ids: [] }); });
   draftDirty = true;
-  const b = document.getElementById('roSave');
-  if (b) b.disabled = false;
+  const btn = document.getElementById('roSave');
+  if (btn) btn.disabled = false;
 }
 function moveItem(el, dir) {
   const body = el.parentElement;
-  const sibs = [...body.querySelectorAll('.roitem')];
-  const i = sibs.indexOf(el);
-  const j = i + dir;
+  const sibs = [...body.querySelectorAll('[data-item]')];
+  const i = sibs.indexOf(el), j = i + dir;
   if (j < 0 || j >= sibs.length) return;
   if (dir < 0) body.insertBefore(el, sibs[j]); else body.insertBefore(sibs[j], el);
-  readDraft(); el.focus();
+  readDraft(); fitBoardColumns(); el.focus();
 }
 function wireReorder() {
-  const list = document.getElementById('roList');
-  if (!list) return;
+  const root = document.getElementById('content');
+  const catBox = root.querySelector('.board') || root.querySelector('.list');
+  const catSel = root.querySelector('.board') ? '.col' : '.lgrpbox';
   let dragEl = null, dragKind = null, homeBody = null;
 
-  list.addEventListener('dragstart', e => {
-    const head = e.target.closest('.rocat-h');
-    const item = e.target.closest('.roitem');
+  root.addEventListener('dragstart', e => {
+    const head = e.target.closest('.colh, .lgrp');
+    const item = e.target.closest('[data-item]');
     if (item) { dragEl = item; dragKind = 'item'; homeBody = item.parentElement; }
-    else if (head) { dragEl = head.parentElement; dragKind = 'cat'; }
+    else if (head) { dragEl = head.closest('[data-cat]'); dragKind = 'cat'; }
     else return;
     dragEl.classList.add('dragging');
     e.dataTransfer.effectAllowed = 'move';
     try { e.dataTransfer.setData('text/plain', ''); } catch(err) {}
   });
-  list.addEventListener('dragend', () => {
+  root.addEventListener('dragend', () => {
     if (!dragEl) return;
     dragEl.classList.remove('dragging');
     dragEl = null; dragKind = null; homeBody = null;
-    readDraft();
+    readDraft(); fitBoardColumns();
   });
-  list.addEventListener('dragover', e => {
+  root.addEventListener('dragover', e => {
     if (!dragEl) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     if (dragKind === 'item') {
-      const body = e.target.closest('.rocat-b');
-      if (!body || body !== homeBody) return;      /* 카테고리 사이 이동은 막는다 */
-      const before = dropBefore(body, e.clientY, '.roitem');
-      if (before) body.insertBefore(dragEl, before); else body.appendChild(dragEl);
-    } else {
-      const before = dropBefore(list, e.clientY, '.rocat');
-      if (before) list.insertBefore(dragEl, before); else list.appendChild(dragEl);
+      const body = e.target.closest('[data-body]');
+      if (!body || body !== homeBody) return;    /* 카테고리 사이 이동은 막는다 */
+      placeInto(body, '[data-item]', dragEl, e.clientX, e.clientY);
+    } else if (catBox) {
+      placeInto(catBox, catSel, dragEl, e.clientX, e.clientY);
     }
   });
-  list.addEventListener('drop', e => e.preventDefault());
-  /* 드래그가 어려운 환경을 위한 키보드 대체 (카드 선택 후 ↑ ↓) */
-  list.addEventListener('keydown', e => {
-    const item = e.target.closest('.roitem');
+  root.addEventListener('drop', e => e.preventDefault());
+  /* 드래그가 어려운 환경을 위한 키보드 대체 (카드를 누른 뒤 ↑ ↓) */
+  root.addEventListener('keydown', e => {
+    const item = e.target.closest('[data-item]');
     if (!item || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
     e.preventDefault();
     moveItem(item, e.key === 'ArrowUp' ? -1 : 1);
@@ -1064,12 +1104,14 @@ function enterReorder() {
   if (deleteMode) exitDeleteMode();
   reorderMode = true; draftDirty = false;
   draft = buildDraft();
+  document.body.classList.add('reorder-mode');
   reorderBtn.classList.add('active');
   reorderBtn.textContent = '편집 종료';
   render();
 }
 function exitReorder() {
   reorderMode = false; draft = null; draftDirty = false;
+  document.body.classList.remove('reorder-mode');
   reorderBtn.classList.remove('active');
   reorderBtn.textContent = '순서 편집';
   render();
@@ -1109,8 +1151,12 @@ async function saveOrder() {
 function render() {
   if (reorderMode) {
     if (!draft) draft = buildDraft();
+    document.querySelectorAll('#viewSeg button').forEach(b => {
+      b.setAttribute('aria-pressed', String(b.dataset.view === effectiveView()));
+    });
     document.getElementById('content').innerHTML = reorderHTML();
     wireReorder();
+    fitBoardColumns();
     if (draftDirty) document.getElementById('roSave').disabled = false;
     return;
   }
@@ -1182,7 +1228,7 @@ function wireContent() {
 /* ── 상단바 ── */
 document.getElementById('searchInput').addEventListener('input', e => { state.q = e.target.value; render(); });
 document.querySelectorAll('#viewSeg button').forEach(b => b.addEventListener('click', () => {
-  state.view = b.dataset.view; savePrefs(); render();
+  state.view = b.dataset.view; savePrefs(); render();   /* 편집 중에도 draft 는 유지된다 */
 }));
 mobileMQ.addEventListener('change', render);
 document.getElementById('btnAdd').onclick = () => { if (deleteMode) exitDeleteMode(); if (reorderMode) exitReorder(); openModal('add'); };

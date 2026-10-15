@@ -124,6 +124,36 @@
   .tb-ghost:hover { background: var(--fill); color: var(--text-primary); }
   .tb-ghost.active { background: var(--primary-bg); color: var(--primary-strong); border-color: rgba(255,84,15,.35); }
   .lbl-sm { display: none; }
+
+  /* ── 순서 편집 ── */
+  .ro-bar { display: flex; align-items: center; gap: 10px; background: var(--primary-bg);
+    color: var(--primary-strong); border-radius: var(--radius-md); padding: 11px 14px; margin-bottom: 16px;
+    font-size: 12.5px; font-weight: 600; }
+  .ro-bar .sp { flex: 1 1 auto; }
+  .ro-bar .hint { font-weight: 500; color: var(--text-secondary); }
+  .ro-save, .ro-cancel { height: 32px; border-radius: var(--radius-sm); font: inherit; font-size: 12.5px;
+    font-weight: 600; padding: 0 14px; cursor: pointer; border: 0; }
+  .ro-save { background: var(--primary); color: #fff; }
+  .ro-save:hover { background: var(--primary-strong); }
+  .ro-save:disabled { background: rgba(105,118,131,.25); cursor: not-allowed; }
+  .ro-cancel { background: transparent; border: 1px solid var(--line); color: var(--text-secondary); }
+  .ro-cancel:hover { background: var(--fill); }
+  .rolist { display: flex; flex-direction: column; gap: 10px; max-width: 680px; }
+  .rocat { background: var(--fill); border-radius: var(--radius-md); padding: 10px 12px 12px; }
+  .rocat.dragging { opacity: .4; }
+  .rocat-h { display: flex; align-items: center; gap: 8px; padding: 2px 2px 9px; cursor: grab; }
+  .rocat-h .n { margin-left: auto; font-size: 11.5px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .rocat-b { display: flex; flex-direction: column; gap: 6px; min-height: 10px; }
+  .roitem { display: flex; align-items: center; gap: 8px; background: var(--surface); border-radius: 10px;
+    padding: 9px 12px; box-shadow: var(--shadow-card); cursor: grab; }
+  .roitem.dragging { opacity: .4; }
+  .roitem .t { flex: 1 1 auto; min-width: 0; font-size: 13.5px; font-weight: 500; letter-spacing: -0.2px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .roitem .a { font-size: 11px; color: var(--text-muted); flex: 0 0 auto; }
+  .rogrip { width: 13px; height: 13px; flex: 0 0 auto; stroke: var(--text-muted); fill: none; stroke-width: 1.8;
+    stroke-linecap: round; }
+  .roitem:focus-visible, .rocat:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+  .roempty { font-size: 11.5px; color: var(--text-muted); padding: 4px 2px; }
   .tb-user { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
   .avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--primary-bg); color: var(--primary-strong);
     display: grid; place-items: center; font-size: 11px; font-weight: 700; overflow: hidden; }
@@ -404,6 +434,7 @@
       <input type="text" id="searchInput" placeholder="제목, 설명, 작성자 검색" aria-label="대시보드 검색" />
     </div>
     <button class="tb-btn" id="btnAdd"><span class="lbl-lg">대시보드 추가</span><span class="lbl-sm">추가</span></button>
+    <button class="tb-btn tb-ghost hide-sm" id="btnReorder" style="display:none">순서 편집</button>
     <button class="tb-btn tb-ghost hide-sm" id="btnManage">관리</button>
     <div class="tb-user">
       <div class="avatar" id="userAvatar"></div>
@@ -566,8 +597,34 @@ const CATEGORIES = [
   { id: 'OKR',            color: '#b28035' },
   { id: '기타',           color: '#6b7684' }
 ];
-const ORDER = CATEGORIES.map(c => c.id);
+const DEFAULT_ORDER = CATEGORIES.map(c => c.id);
 const ARCHIVE_CATEGORY = '미사용';
+
+/* ── 순서 편집 권한 ──
+   운영자만 순서를 바꿀 수 있다. 저장된 순서는 개인 설정이 아니라 dashboards 문서에
+   들어가므로 모두에게 똑같이 보인다. 화면에서 버튼을 감추는 수준의 제한이라
+   진짜 차단이 필요하면 Firestore 보안 규칙에서 쓰기 주체를 제한해야 한다. */
+const ADMIN_EMAILS = ['ace.park@healingpaper.com'];
+const isAdmin = () => {
+  const u = auth.currentUser;
+  return !!(u && u.email && ADMIN_EMAILS.indexOf(u.email.toLowerCase()) >= 0);
+};
+
+/* 카테고리 순서는 dashboards 안의 전용 문서 한 건에 저장한다.
+   별도 컬렉션을 쓰면 보안 규칙을 새로 열어야 해서, 이미 읽기·쓰기가 되는 곳에 둔다.
+   이 문서는 목록 어디에도 카드로 나오지 않는다. */
+const LAYOUT_ID = '__layout__';
+let layoutCats = null;      /* 저장된 카테고리 순서 (없으면 null) */
+let layoutExists = false;
+
+function catOrder() {
+  const out = [], seen = new Set();
+  (layoutCats || []).forEach(c => {
+    if (DEFAULT_ORDER.indexOf(c) >= 0 && !seen.has(c)) { seen.add(c); out.push(c); }
+  });
+  DEFAULT_ORDER.forEach(c => { if (!seen.has(c)) { seen.add(c); out.push(c); } });
+  return out;
+}
 const catColor = id => (CATEGORIES.find(c => c.id === id) || {}).color || '#697683';
 function chipStyle(id) {
   const c = catColor(id);
@@ -581,6 +638,9 @@ let modalMode = 'add';
 let editingId = null;
 let deleteMode = false;
 let selectedIds = new Set();
+let reorderMode = false;
+let draft = null;      /* 순서 편집 중인 임시 순서 */
+let draftDirty = false;
 const state = { view: 'board', fav: new Set(), recent: [], q: '', archOpen: false };
 
 const today = new Date();
@@ -651,7 +711,12 @@ function savePrefs() {
 auth.onAuthStateChanged((user) => {
   hideLoading(); hideLogin(); hideBlocked();
   if (unsubscribe) { unsubscribe(); unsubscribe = null; }
-  if (!user) { dashboards = []; prefsRef = null; prefsLoaded = false; showLogin(); return; }
+  if (!user) {
+    dashboards = []; prefsRef = null; prefsLoaded = false;
+    reorderMode = false; draft = null;
+    document.getElementById('btnReorder').style.display = 'none';
+    showLogin(); return;
+  }
   const domain = user.email.split('@')[1];
   if (domain !== ALLOWED_DOMAIN) {
     const blockedEmail = user.email;
@@ -662,6 +727,7 @@ auth.onAuthStateChanged((user) => {
   }
   if (pendingExplicitLogin) { pendingExplicitLogin = false; logEvent('login', {}); }
   showApp(user);
+  document.getElementById('btnReorder').style.display = isAdmin() ? '' : 'none';
   loadPrefs(user.uid);
   subscribeToDashboards();
 });
@@ -702,7 +768,15 @@ document.getElementById('btnSignout').onclick = () => auth.signOut();
 /* ── Firestore ── */
 function subscribeToDashboards() {
   unsubscribe = db.collection('dashboards').orderBy('createdAt', 'desc').onSnapshot(
-    snap => { dashboards = snap.docs.map(d => ({ id: d.id, ...d.data() })); render(); },
+    snap => {
+      const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const lay = all.find(d => d.id === LAYOUT_ID);
+      layoutExists = !!lay;
+      layoutCats = lay && Array.isArray(lay.categories) ? lay.categories : null;
+      dashboards = all.filter(d => d.id !== LAYOUT_ID);
+      if (reorderMode) draft = buildDraft();   /* 다른 사람이 추가/삭제했을 때 반영 */
+      render();
+    },
     err  => {
       document.getElementById('content').innerHTML =
         '<div class="empty">데이터를 불러오지 못했어요.<br><small>' + esc(err.message) + '</small></div>';
@@ -778,11 +852,18 @@ function createdMs(d) {
   const p = Date.parse(String((d && d.date) || '').replace(/\./g, '-').replace(/-+$/, ''));
   return isNaN(p) ? 0 : p;
 }
+/* 카테고리 안 카드 순서 — order 가 지정된 카드가 먼저(지정 순), 나머지는 등록 순.
+   새로 추가한 카드는 order 가 없으므로 자연스럽게 맨 아래로 간다. */
+function cardSort(a, b) {
+  const ao = typeof a.order === 'number', bo = typeof b.order === 'number';
+  if (ao && bo) return a.order - b.order;
+  if (ao !== bo) return ao ? -1 : 1;
+  return createdMs(a) - createdMs(b);
+}
 function groupsOf(items) {
-  return ORDER.map(c => ({
+  return catOrder().map(c => ({
     c,
-    /* 카테고리 안에서는 등록한 순서(먼저 등록한 것이 위) */
-    items: items.filter(d => (d.category || '기타') === c).sort((a, b) => createdMs(a) - createdMs(b)),
+    items: items.filter(d => (d.category || '기타') === c).sort(cardSort),
   })).filter(g => g.items.length);
 }
 function boardHTML(gs, q) {
@@ -866,8 +947,170 @@ function archiveHTML(q) {
     + SVG_CHEV + '<b>보관함</b> 더 이상 쓰지 않는 대시보드<span class="n">' + all.length + '건</span></button>' + panel;
 }
 
+/* ── 순서 편집 ── */
+const SVG_GRIP = '<svg class="rogrip" viewBox="0 0 24 24" aria-hidden="true">'
+  + '<path d="M4 8h16M4 16h16"/></svg>';
+
+function buildDraft() {
+  const active = dashboards.filter(d => !isArchived(d));
+  return catOrder().map(c => ({
+    c,
+    ids: active.filter(d => (d.category || '기타') === c).sort(cardSort).map(d => d.id),
+  }));
+}
+function reorderHTML() {
+  const byId = {};
+  dashboards.forEach(d => { byId[d.id] = d; });
+  return '<div class="ro-bar"><b>순서 편집</b>'
+    + '<span class="hint">카드를 끌어 같은 카테고리 안에서 옮기고, 카테고리는 머리말을 끌어 옮기세요. 저장해야 모두에게 반영됩니다.</span>'
+    + '<span class="sp"></span>'
+    + '<button type="button" class="ro-cancel" id="roCancel">취소</button>'
+    + '<button type="button" class="ro-save" id="roSave" disabled>저장</button></div>'
+    + '<div class="rolist" id="roList">' + draft.map(g =>
+        '<div class="rocat" data-cat="' + esc(g.c) + '">'
+        + '<div class="rocat-h" draggable="true">' + SVG_GRIP
+        + '<span class="chip" style="' + chipStyle(g.c) + '">' + esc(g.c) + '</span>'
+        + '<span class="n">' + g.ids.length + '</span></div>'
+        + '<div class="rocat-b" data-body="' + esc(g.c) + '">'
+        + (g.ids.length ? g.ids.map(id => {
+            const d = byId[id];
+            if (!d) return '';
+            return '<div class="roitem" draggable="true" data-item="' + esc(id) + '" tabindex="0">'
+              + SVG_GRIP + '<span class="t">' + esc(d.title) + '</span>'
+              + '<span class="a">' + esc(d.author || '') + '</span></div>';
+          }).join('') : '<div class="roempty">아직 대시보드가 없는 카테고리</div>')
+        + '</div></div>').join('') + '</div>';
+}
+/* 커서 위치 기준으로 어느 요소 앞에 끼울지 */
+function dropBefore(container, y, sel) {
+  let best = null, bestOff = -Infinity;
+  container.querySelectorAll(sel).forEach(el => {
+    if (el.classList.contains('dragging')) return;
+    const b = el.getBoundingClientRect();
+    const off = y - b.top - b.height / 2;
+    if (off < 0 && off > bestOff) { bestOff = off; best = el; }
+  });
+  return best;
+}
+function readDraft() {
+  draft = [...document.querySelectorAll('#roList .rocat')].map(cat => ({
+    c: cat.dataset.cat,
+    ids: [...cat.querySelectorAll('.roitem')].map(el => el.dataset.item),
+  }));
+  draftDirty = true;
+  const b = document.getElementById('roSave');
+  if (b) b.disabled = false;
+}
+function moveItem(el, dir) {
+  const body = el.parentElement;
+  const sibs = [...body.querySelectorAll('.roitem')];
+  const i = sibs.indexOf(el);
+  const j = i + dir;
+  if (j < 0 || j >= sibs.length) return;
+  if (dir < 0) body.insertBefore(el, sibs[j]); else body.insertBefore(sibs[j], el);
+  readDraft(); el.focus();
+}
+function wireReorder() {
+  const list = document.getElementById('roList');
+  if (!list) return;
+  let dragEl = null, dragKind = null, homeBody = null;
+
+  list.addEventListener('dragstart', e => {
+    const head = e.target.closest('.rocat-h');
+    const item = e.target.closest('.roitem');
+    if (item) { dragEl = item; dragKind = 'item'; homeBody = item.parentElement; }
+    else if (head) { dragEl = head.parentElement; dragKind = 'cat'; }
+    else return;
+    dragEl.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', ''); } catch(err) {}
+  });
+  list.addEventListener('dragend', () => {
+    if (!dragEl) return;
+    dragEl.classList.remove('dragging');
+    dragEl = null; dragKind = null; homeBody = null;
+    readDraft();
+  });
+  list.addEventListener('dragover', e => {
+    if (!dragEl) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragKind === 'item') {
+      const body = e.target.closest('.rocat-b');
+      if (!body || body !== homeBody) return;      /* 카테고리 사이 이동은 막는다 */
+      const before = dropBefore(body, e.clientY, '.roitem');
+      if (before) body.insertBefore(dragEl, before); else body.appendChild(dragEl);
+    } else {
+      const before = dropBefore(list, e.clientY, '.rocat');
+      if (before) list.insertBefore(dragEl, before); else list.appendChild(dragEl);
+    }
+  });
+  list.addEventListener('drop', e => e.preventDefault());
+  /* 드래그가 어려운 환경을 위한 키보드 대체 (카드 선택 후 ↑ ↓) */
+  list.addEventListener('keydown', e => {
+    const item = e.target.closest('.roitem');
+    if (!item || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+    e.preventDefault();
+    moveItem(item, e.key === 'ArrowUp' ? -1 : 1);
+  });
+  document.getElementById('roCancel').onclick = exitReorder;
+  document.getElementById('roSave').onclick = saveOrder;
+}
+function enterReorder() {
+  if (!isAdmin()) return;
+  if (deleteMode) exitDeleteMode();
+  reorderMode = true; draftDirty = false;
+  draft = buildDraft();
+  reorderBtn.classList.add('active');
+  reorderBtn.textContent = '편집 종료';
+  render();
+}
+function exitReorder() {
+  reorderMode = false; draft = null; draftDirty = false;
+  reorderBtn.classList.remove('active');
+  reorderBtn.textContent = '순서 편집';
+  render();
+}
+async function saveOrder() {
+  if (!isAdmin() || !draft) return;
+  const btn = document.getElementById('roSave');
+  btn.disabled = true; btn.textContent = '저장 중…';
+  try {
+    const byId = {};
+    dashboards.forEach(d => { byId[d.id] = d; });
+    const batch = db.batch();
+    let changed = 0;
+    draft.forEach(g => g.ids.forEach((id, i) => {
+      const d = byId[id];
+      if (d && d.order !== i) { batch.update(db.collection('dashboards').doc(id), { order: i }); changed++; }
+    }));
+    const lay = {
+      _type: 'layout',
+      categories: draft.map(g => g.c),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedBy: auth.currentUser ? auth.currentUser.uid : null,
+    };
+    /* createdAt 이 있어야 목록 구독(orderBy createdAt)에 잡힌다 */
+    if (!layoutExists) lay.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+    batch.set(db.collection('dashboards').doc(LAYOUT_ID), lay, { merge: true });
+    await batch.commit();
+    logEvent('reorder', { changedCards: changed, categories: lay.categories });
+    exitReorder();
+  } catch(e) {
+    btn.disabled = false; btn.textContent = '저장';
+    alert('순서를 저장하지 못했어요: ' + e.message);
+  }
+}
+
 /* ── 전체 렌더 ── */
 function render() {
+  if (reorderMode) {
+    if (!draft) draft = buildDraft();
+    document.getElementById('content').innerHTML = reorderHTML();
+    wireReorder();
+    if (draftDirty) document.getElementById('roSave').disabled = false;
+    return;
+  }
   const q = state.q.trim().toLowerCase();
   const active = dashboards.filter(d => !isArchived(d) && matches(d, q));
   const gs = groupsOf(active);
@@ -939,8 +1182,10 @@ document.querySelectorAll('#viewSeg button').forEach(b => b.addEventListener('cl
   state.view = b.dataset.view; savePrefs(); render();
 }));
 mobileMQ.addEventListener('change', render);
-document.getElementById('btnAdd').onclick = () => { if (deleteMode) exitDeleteMode(); openModal('add'); };
-document.getElementById('btnManage').onclick = () => { deleteMode ? exitDeleteMode() : enterDeleteMode(); };
+document.getElementById('btnAdd').onclick = () => { if (deleteMode) exitDeleteMode(); if (reorderMode) exitReorder(); openModal('add'); };
+document.getElementById('btnManage').onclick = () => { if (reorderMode) exitReorder(); deleteMode ? exitDeleteMode() : enterDeleteMode(); };
+const reorderBtn = document.getElementById('btnReorder');
+reorderBtn.onclick = () => { reorderMode ? exitReorder() : enterReorder(); };
 document.getElementById('noticeClose').onclick = () => {
   document.getElementById('prefsNotice').classList.remove('visible');
   try { sessionStorage.setItem('prefsNoticeDismissed', '1'); } catch(e) {}
@@ -1038,6 +1283,7 @@ overlay.addEventListener('click', e => { if (e.target === overlay) closeModal();
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   if (overlay.style.display === 'flex') closeModal();
+  else if (reorderMode) exitReorder();
   else if (deleteMode) exitDeleteMode();
 });
 

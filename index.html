@@ -613,7 +613,7 @@ const isAdmin = () => {
 /* 카테고리 순서는 dashboards 안의 전용 문서 한 건에 저장한다.
    별도 컬렉션을 쓰면 보안 규칙을 새로 열어야 해서, 이미 읽기·쓰기가 되는 곳에 둔다.
    이 문서는 목록 어디에도 카드로 나오지 않는다. */
-const LAYOUT_ID = '__layout__';
+const LAYOUT_ID = 'layout-order';   /* __x__ 형태는 Firestore 예약 ID 라 쓸 수 없다 */
 let layoutCats = null;      /* 저장된 카테고리 순서 (없으면 null) */
 let layoutExists = false;
 
@@ -770,10 +770,10 @@ function subscribeToDashboards() {
   unsubscribe = db.collection('dashboards').orderBy('createdAt', 'desc').onSnapshot(
     snap => {
       const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const lay = all.find(d => d.id === LAYOUT_ID);
+      const lay = all.find(d => d.id === LAYOUT_ID || d._type === 'layout');
       layoutExists = !!lay;
       layoutCats = lay && Array.isArray(lay.categories) ? lay.categories : null;
-      dashboards = all.filter(d => d.id !== LAYOUT_ID);
+      dashboards = all.filter(d => d.id !== LAYOUT_ID && d._type !== 'layout');
       if (reorderMode) draft = buildDraft();   /* 다른 사람이 추가/삭제했을 때 반영 */
       render();
     },

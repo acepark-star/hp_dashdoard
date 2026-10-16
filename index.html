@@ -1060,7 +1060,7 @@ function draftGroups() {
 function reorderHTML() {
   const gs = draftGroups();
   const n = gs.reduce((t, g) => t + g.items.length, 0);
-  return '<div class="ro-banner">손잡이를 끌어 순서를 바꾸고, 카테고리 이름은 눌러서 고치세요.'
+  return '<div class="ro-banner">끌어서 순서를 바꾸고, 카테고리 이름을 눌러서 수정하세요.'
     + '<span class="hint"> 아래 저장을 눌러야 모두에게 반영됩니다.</span></div>'
     + '<div class="sec-h">전체<span class="n">' + n + '건</span><i class="rule"></i></div>'
     + (effectiveView() === 'board' ? boardHTML(gs, '') : listHTML(gs, ''))

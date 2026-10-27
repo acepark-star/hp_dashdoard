@@ -260,8 +260,9 @@
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .card.selectable .cd { margin-right: 0; }
   .card .cm { margin-top: 8px; font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
-  .card.isfav { box-shadow: 0 1px 2px -1px rgba(243,81,29,.22), inset 0 0 0 1px rgba(255,106,59,.32); }
-  .card.isfav:hover { box-shadow: var(--shadow-hover), inset 0 0 0 1px rgba(255,106,59,.46); }
+  /* 즐겨찾기 카드는 한눈에 구분되도록 테두리를 1.5px 로 두껍고 진하게 */
+  .card.isfav { box-shadow: 0 1px 3px -1px rgba(243,81,29,.26), inset 0 0 0 1.5px rgba(255,106,59,.6); }
+  .card.isfav:hover { box-shadow: var(--shadow-hover), inset 0 0 0 1.5px rgba(243,81,29,.8); }
 
   .fav, .edit { position: absolute; top: 8px; width: 24px; height: 24px; border: 0; background: transparent;
     padding: 0; cursor: pointer; display: grid; place-items: center; border-radius: 6px; z-index: 2; }
@@ -271,7 +272,7 @@
   .fav svg, .edit svg { width: 13px; height: 13px; stroke: rgba(13,13,13,.24); fill: none; stroke-width: 1.7;
     stroke-linejoin: round; stroke-linecap: round; }
   .fav:hover svg, .edit:hover svg { stroke: var(--primary); }
-  .fav.on svg { fill: var(--primary); stroke: var(--primary); }
+  .fav.on svg { width: 15px; height: 15px; fill: var(--primary); stroke: var(--primary); }
   .fav:focus-visible, .edit:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
 
   /* ── 리스트형 ── */
